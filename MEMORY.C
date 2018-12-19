@@ -291,35 +291,38 @@ unsigned char ROMImageV1[] =
 };
 
 
+///* load in to 0xFA0 */
+unsigned char RAMInit[] = { 
+ 0xC4,0x01,0x07,0x3f,0xC4,0x03,0x07,0x3f,0xC4,0x07,0x07,0x3f,0xC4,0x06,0x07,0x3f
+,0xC4,0x04,0x07,0x3f,0xC4,0x00,0x07,0x3f,0xC4,0x01,0x07,0x3f,0xC4,0x9f,0x30,0x00
+
+};
+
+
 /********************************************************************/
 /*						Load in the SCIOS ROM						*/
 /********************************************************************/
 
 int LoadROM(void)
 {
-int n,c;
-for (n = 0;n < 512;n++)					/* ROM is 512 bytes */
-	{
-		
-		
-	c = (int)ROMImage[n];				/* and it is mirrored ! */
-	c = c & 0xFF;
-	
-	printf("%02X",c);
-	if ( n % 16 ){
-	  printf("\n");	
-	}
-	
-	Memory[n] = Memory[n+512] =
-				Memory[n+1024] = Memory[n+1536] = c;
-	}
-for (n = 0x800;n < 0x1000;n++)			/* Blank the rest of memory */
-						Memory[n] = 0;
-						
-						
+  int n,c;
 
+  for (n = 0;n < 512;n++){		/* ROM is 512 bytes */
+    c = (int)ROMImage[n];				/* and it is mirrored ! */
+    c = c & 0xFF;
+
+    Memory[n] = Memory[n+512] = Memory[n+1024] = Memory[n+1536] = c;
+  }
+  for (n = 0x800;n < 0x1000;n++){			/* Blank the rest of memory */
+    Memory[n] = 0;
+  }						
 						
-return(1);
+  for (n = 0;n < 32;n++){	/* ROM is 512 bytes */
+    c = (int)RAMInit[n];		/* and it is mirrored ! */
+    c = c & 0xFF;
+    Memory[n+0xFA0] = c;
+  }					
+  return(1);
 }
 
 /********************************************************************/
@@ -355,7 +358,7 @@ return(-1);
 }
 
 static int ReadHex(FILE *f)
-{
+{ 
 int n,i,c;
 n = 0;
 for (i = 0;i < 2;i++)

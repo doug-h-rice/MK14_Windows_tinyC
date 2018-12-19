@@ -45,6 +45,8 @@ HDC  hDCWork;												// Repaint DC for running
 char ObjectFile[128];
 
 #define DELTA	(10)										// Mouse moves to halt
+#define IDT_TIMER1 1
+#define IDT_TIMER2 2
 
 int PASCAL WinMain(HINSTANCE hInst,HINSTANCE hPrevInst,
 												LPSTR lpszCmdLine,int nCmdShow)
@@ -72,7 +74,6 @@ if (hPrevInst == NULL)									// Register class if required
 hOnPen    = CreatePen(PS_SOLID,4,RGB(220,0,0));    	// Create LED Draw Pens
 hOffPen   = CreatePen(PS_SOLID,4,RGB(192,192,192));
 hPausePen = CreatePen(PS_SOLID,4,RGB(128,128,128));
-
 hFlagsPen = CreatePen(PS_SOLID,4,RGB(  0,200,0));    	// Create LED Draw Pens
 
 
@@ -95,6 +96,7 @@ while (GetMessage(&Msg,(HWND)NULL,NULL,NULL))	// Main message loop
 DeleteObject(hOnPen);									// Delete LED Draw Pens
 DeleteObject(hOffPen);
 DeleteObject(hPausePen);
+DeleteObject(hFlagsPen);
 ReleaseDC(hWnd,hDCWork);
 return(0);
 }
@@ -102,6 +104,8 @@ return(0);
 RECT rcFrame;												// Frame for display
 RECT rcLED[DIGITS]; 										// LED Frames
 RECT rcStatusLED[DIGITS];
+
+int count=0;
 
 LRESULT CALLBACK MK14WindowProc(HWND hWnd,UINT iMessage,WPARAM wParam,LPARAM lParam)
 {
@@ -114,9 +118,31 @@ HPEN hOldPen;
 MSG Msg;
 POINT ptOld,ptNew;
 BOOL bRange;
+TCHAR text[256];
+
 
 switch(iMessage)
 	{
+	case WM_TIMER: 
+ 
+      switch (wParam) 
+      { 
+        case IDT_TIMER1: 
+          // process the 10-second timer 
+          count++;
+		  CONKeyPressed(KEY_BREAK);	
+	 	  BlockExecute();
+		  InvalidateRect(hWnd,NULL,TRUE);		  
+          //break;
+          bRunning = TRUE;		  
+          return 0;
+ 
+        case IDT_TIMER2: 
+          // process the five-minute timer 
+          //break;		  
+          return 0; 
+      }   
+
 	case WM_CREATE:
 
 /* these functions link in the MK 14 emulation code */
@@ -126,6 +152,11 @@ switch(iMessage)
 		LoadROM();
 		ResetCPU();
 		LoadObject(ObjectFile);
+		
+		SetTimer(hWnd,           // handle to main window 
+			IDT_TIMER1,            // timer identifier 
+			200,                  // 1 second interval 
+			(TIMERPROC) NULL);     // no timer callback 
 		
 /* */
 		break;
@@ -174,27 +205,26 @@ switch(iMessage)
 			rcStatusLED[i].bottom = rcFrame.bottom - 5 - x1;
 			}
 		break;
-
-		
-		
-		
 		
 	case WM_KEYUP:
-/*
-		//
-		{
-		  for (i = 0;i < DIGITS;i++){
-		    LEDStatus[i] = wParam;
-		  }
-		  InvalidateRect(hWnd,NULL,TRUE); // triggeres a PAINT
-		}
-*/		
-		if (wParam == 'G')
+	
+		if (wParam == 'G'){
  		  SendMessage(hWnd,WM_LBUTTONDOWN,0,0L);
+        }
+		
+		if (wParam == 'X'){
+		  SetTimer(hWnd,           // handle to main window 
+			IDT_TIMER1,            // timer identifier 
+			200,                  // 1 second interval 
+			(TIMERPROC) NULL);     // no timer callback 
+	    }
 
 	    //InvalidateRect(hWnd,NULL,TRUE);
 	  break;
 
+	  
+	  
+	  
 	case WM_LBUTTONDOWN:									// Run program
 		GetCursorPos(&ptOld);
 		bRange = TRUE;
@@ -205,27 +235,39 @@ switch(iMessage)
 		RefreshStatusLED(hDCWork,1,( Stat & 4  ),-1);
 	    RefreshStatusLED(hDCWork,2,( Stat & 2  ),-1);
 		RefreshStatusLED(hDCWork,3,( Stat & 1  ),-1);
-	
+	    
+		SetBkColor(ps.hdc, RGB( 192, 192, 192 ) );
+//    	TCHAR text[256];
+//    	wsprintfA(text, "Acc: 0x%02X Stat: 0x%02X", Acc, Stat );
+    	wsprintfA(text, "count: 0x%04X Stat: 0x%02X", count,Stat );
+    	TextOut(ps.hdc, rcFrame.right-140, rcFrame.bottom -20, text, strlen(text));
 			
-			
+		/* block peeking key messages, peek mouse move and disable if not in focus */	
+/*
 		while (!CONKeyPressed(KEY_BREAK) && bRange)
-			{
+		{
 			BlockExecute();
 			PeekMessage(&Msg,NULL,WM_KEYUP,WM_KEYDOWN,PM_REMOVE|PM_NOYIELD);
+			// look for mouse move out of focus
 			GetCursorPos(&ptNew);
-			if (abs(ptOld.x-ptNew.x) > DELTA ||
-						abs(ptOld.y-ptNew.y) > DELTA) bRange = FALSE;
-			}
+			if (
+				abs(ptOld.x-ptNew.x) > DELTA ||
+				abs(ptOld.y-ptNew.y) > DELTA) bRange = FALSE;
+		    InvalidateRect(hWnd,NULL,TRUE);
+		}
+*/		
 		bRunning = FALSE;
 		InvalidateRect(hWnd,NULL,TRUE);
 		break;
 
+		
 	case WM_RBUTTONDOWN:
 		MessageBox(hWnd,
 			 "MK14 Emulator\n\n(C) Paul Robson 1998\n\nG to run emulator,Q to stop\nT:Term Z:Abort G:Go M:Mem\n",
 			 "About MK14 for Windows",MB_OK | MB_ICONINFORMATION);
 		break;
 
+		
 	case WM_PAINT:											// Paint window
 		BeginPaint(hWnd,&ps);
 		hOldPen = SelectObject(ps.hdc,GetStockObject(WHITE_PEN));
@@ -248,6 +290,17 @@ switch(iMessage)
 		RefreshStatusLED(ps.hdc,1,( Stat & 4  ),-1);
 	    RefreshStatusLED(ps.hdc,2,( Stat & 2  ),-1);
 		RefreshStatusLED(ps.hdc,3,( Stat & 1  ),-1);
+
+		SetBkColor(ps.hdc, RGB( 192, 192, 192 ) );
+//    	TCHAR text[256];
+//    	wsprintfA(text, "Acc: 0x%02X Stat: 0x%02X", Acc, Stat );
+    	wsprintfA(text, "count: 0x%04X Stat: 0x%02X", count, Stat );
+    	TextOut(ps.hdc, rcFrame.right-140, rcFrame.bottom -20, text, strlen(text));
+/*
+ 		wsprintfA(text,  "Stat: 0x%02X", Stat);
+    	TextOut(ps.hdc, rcFrame.left+200, rcFrame.bottom -10, text, strlen(text));
+*/
+
 
 		SelectObject(ps.hdc,hOldPen);
 		EndPaint(hWnd,&ps);
@@ -308,6 +361,7 @@ HPEN hPen    = SelectObject(hDC,hOnPen);
 
 HPEN hUsePen = bRunning ? hFlagsPen : hPausePen;
 
+
 if ( Old < 0  ) Old = New ^ 0xFF;
 
 if ( New != 0 ){
@@ -357,6 +411,12 @@ if (hDCWork != NULL)
 	RefreshStatusLED(hDCWork,1,( Stat & 4  ),-1);
 	RefreshStatusLED(hDCWork,2,( Stat & 2  ),-1);
 	RefreshStatusLED(hDCWork,3,( Stat & 1  ),-1);
+
+	SetBkColor(hDCWork, RGB( 192, 192, 192 ) );
+    TCHAR text[256];
+//    	wsprintfA(text, "Acc: 0x%02X Stat: 0x%02X", Acc, Stat );
+    wsprintfA(text, "count: 0x%04X Stat: 0x%02X", count, Stat );
+    TextOut(hDCWork, rcFrame.right-140, rcFrame.bottom -20, text, strlen(text));
 
 	
 	}

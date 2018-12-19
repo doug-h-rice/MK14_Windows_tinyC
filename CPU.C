@@ -175,6 +175,7 @@ while (Count-- > 0)
 			CYC(l);break;
 
 		case 0x01:							/* XAE */
+		    CYC(5); // missing dhr
 			n = Acc;Acc = Ext;Ext = n;break;
 		case 0x19:							/* SIO */
 			CYC(5);Ext = (Ext >> 1) & 0x7F;break;
