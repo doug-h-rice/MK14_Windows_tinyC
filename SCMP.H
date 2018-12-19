@@ -6,7 +6,7 @@
 /*																	*/
 /********************************************************************/
 
-#define	DIGITS		(8)					/* LED Digit Count */
+#define	DIGITS		( 8 )					/* LED Digit Count */
 
 /********************************************************************/
 /*		The External Interface - Porting for various versions		*/
@@ -67,4 +67,3 @@ void Latency(void);						/* Latency test */
 
 
 
-

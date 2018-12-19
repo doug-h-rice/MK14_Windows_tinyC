@@ -5,6 +5,16 @@
 /*								CPU Emulator						*/
 /*																	*/
 /********************************************************************/
+/* This has been edited to fix jmp 0x80 bug							*/
+/* for jumps when DISP = 0x80, do not use E                         */
+/*																	*/
+/* SCIOS_v1 does not work with Paul Robson's code.					*/
+/*																	*/
+/* The jump below has a DISP of 0x80 								*/														
+/* 0161   107F E4 03       Gock:	xri	03		; check for term    */
+/* 0162   1081 98 80       	jz 	GoOut			; error if no term  */
+/*																	*/
+/********************************************************************/
 
 #include "scmp.h"
 
@@ -14,6 +24,8 @@ unsigned char Memory[4096];				/* SC/MP Program Memory */
 long Cycles;							/* Cycle Count */
 
 static int Indexed(int);                /* Local prototypes */
+/* bug in Paul Robson's emulator JMPS with offset 80 do not use E .*/
+static int IndexedJmp(int);             /* Local prototypes */
 static int AutoIndexed(int);
 static int BinAdd(int,int);
 static int DecAdd(int,int);
@@ -137,16 +149,16 @@ while (Count-- > 0)
 			CYC(7);break;
 
 		CAS4(0x90):							/* Jumps */
-			CYC(11);Ptr[0] = Indexed(Pointer);break;
+			CYC(11);Ptr[0] = IndexedJmp(Pointer);break;
 		CAS4(0x94):
-			CYC(11);n = Indexed(Pointer);
+			CYC(11);n = IndexedJmp(Pointer);
 			if ((Acc & 0x80) == 0) Ptr[0] = n;
 			break;
 		CAS4(0x98):
-			CYC(11);n = Indexed(Pointer);if (Acc == 0) Ptr[0] = n;
+			CYC(11);n = IndexedJmp(Pointer);if (Acc == 0) Ptr[0] = n;
 			break;
 		CAS4(0x9C):
-			CYC(11);n = Indexed(Pointer);if (Acc != 0) Ptr[0] = n;
+			CYC(11);n = IndexedJmp(Pointer);if (Acc != 0) Ptr[0] = n;
 			break;
 
 		CAS4(0xA8):							/* ILD and DLD */
@@ -257,6 +269,20 @@ return(ADD12(Ptr[p],Offset));			/* Return result */
 }
 
 /********************************************************************/
+/*							Indexing Mode for Jumps 				*/
+/********************************************************************/
+
+static int IndexedJmp(int p)
+{
+int Offset;
+FETCH(Offset);							/* Get offset */
+/* if (Offset == 0x80) Offset = Ext; */	/* Using 'E' register ? */
+if (Offset & 0x80) Offset = Offset-256;	/* Sign extend */
+return(ADD12(Ptr[p],Offset));			/* Return result */
+}
+
+
+/********************************************************************/
 /*						  Auto-indexing mode						*/
 /********************************************************************/
 
@@ -273,4 +299,3 @@ if (Offset > 0)							/* Post increment on +ve offset */
 	Ptr[p] = ADD12(Ptr[p],Offset);
 return(Address);
 }
-
